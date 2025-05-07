@@ -30,16 +30,10 @@ async def handle_icao(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(text) == 4 and text.isalpha():
         try:
             data = await fetch_atis(text)
-            if "atis" in data and data["atis"]:
-                atis_text = data["atis"].get("text", "No ATIS text.")
-                await update.message.reply_text(f"{text} ATIS:\n{atis_text}")
-            else:
-                await update.message.reply_text(f"No ATIS found for {text}.")
+            await update.message.reply_text(str(data))  # TEMPORARY: send raw response
         except Exception as e:
             logger.error(f"Error fetching {text}: {e}")
             await update.message.reply_text(f"Error fetching ATIS for {text}.")
-    else:
-        await update.message.reply_text("Send a valid 4-letter ICAO code (e.g. KLAX).")
 
 async def all_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
