@@ -139,7 +139,7 @@ def main():
 def webhook():
     if request.method == "POST":
         update = Update.de_json(request.get_json(force=True), application.bot)
-        asyncio.create_task(application.process_update(update))
+        asyncio.run(application.process_update(update))  # This runs the update in an event loop
         return "OK", 200
     return "Webhook is running", 200
     
