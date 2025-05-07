@@ -1,50 +1,103 @@
+
 import logging
-import os
 import requests
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters, CommandHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+import os
 
-# API base
-API_BASE_URL = "https://datis.clowd.io/api"
+API_BASE = "https://datis.clowd.io/api"
 
-# Enable logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
-
 logger = logging.getLogger(__name__)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome to DATIS Bot! Use /atis <ICAO> to get ATIS information.")
+# --- ATIS Fetcher ---
 
-async def atis(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Please provide an ICAO code. Example: /atis KLAX")
-        return
+async def fetch_atis(icao: str):
+    url = f"{API_BASE}/{icao}"
+    res = requests.get(url)
+    logger.info(f"GET {url} => {res.status_code}")
+    res.raise_for_status()
+    return res.json()
 
-    icao = context.args[0].upper()
+# --- Handlers ---
+
+async def handle_icao(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip().upper()
+    if len(text) == 4 and text.isalpha():
+        try:
+            data = await fetch_atis(text)
+            if "atis" in data and data["atis"]:
+                atis_text = data["atis"].get("text", "No ATIS text.")
+                await update.message.reply_text(f"{text} ATIS:\n{atis_text}")
+            else:
+                await update.message.reply_text(f"No ATIS found for {text}.")
+        except Exception as e:
+            logger.error(f"Error fetching {text}: {e}")
+            await update.message.reply_text(f"Error fetching ATIS for {text}.")
+    else:
+        await update.message.reply_text("Send a valid 4-letter ICAO code (e.g. KLAX).")
+
+async def all_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        response = requests.get(f"{API_BASE_URL}/{icao}")
-        if response.status_code == 200:
-            data = response.json()
-            atis_text = data.get('atis', {}).get('text', 'No ATIS available')
-            await update.message.reply_text(f"ATIS for {icao}:\n{atis_text}")
-        else:
-            await update.message.reply_text(f"Could not fetch ATIS for {icao}")
+        res = requests.get(f"{API_BASE}/all")
+        logger.info(f"GET /all => {res.status_code}")
+        res.raise_for_status()
+        data = res.json()
+
+        if not isinstance(data, list) or not data:
+            await update.message.reply_text("No data returned.")
+            return
+
+        message = ""
+        for entry in data[:5]:  # Limit to 5 stations
+            icao = entry.get("icao", "N/A")
+            name = entry.get("name", "Unknown")
+            atis = entry.get("atis", {}).get("text", "No ATIS text.")
+            freq = entry.get("frequency", "N/A")
+            message += f"{icao} – {name}\nFreq: {freq}\n{atis}\n\n"
+        
+        await update.message.reply_text(message[:4000])  # Telegram message limit
     except Exception as e:
-        logger.error(f"Error fetching ATIS: {e}")
-        await update.message.reply_text("An error occurred while fetching ATIS information")
+        logger.error(f"Error in /all: {e}")
+        await update.message.reply_text("Error fetching all ATIS data.")
+
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Welcome to DATIS Bot!\n\n"
+        "• Send any 4-letter ICAO code (e.g. KLAX)\n"
+        "• Use /all to see active ATIS reports\n"
+        "• Use /stations to see supported airports"
+    )
+
+async def stations_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        res = requests.get(f"{API_BASE}/stations")
+        logger.info(f"GET /stations => {res.status_code}")
+        res.raise_for_status()
+        stations = res.json()
+        
+        if stations:
+            station_list = ", ".join(sorted(stations))
+            await update.message.reply_text(f"Supported stations:\n{station_list}")
+        else:
+            await update.message.reply_text("No stations available.")
+    except Exception as e:
+        logger.error(f"Error in /stations: {e}")
+        await update.message.reply_text("Error fetching station list.")
 
 def main():
     app = ApplicationBuilder().token(os.environ["BOT_TOKEN"]).build()
-
+    
     # Add handlers
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("atis", atis))
-
-    # Start the bot
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("all", all_command))
+    app.add_handler(CommandHandler("stations", stations_command))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
+    
+    # Start bot
     app.run_polling()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
