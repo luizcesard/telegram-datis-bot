@@ -2,7 +2,7 @@
 import logging
 import requests
 from telegram import Update
-from flask import Flask
+from flask import Flask, request
 from threading import Thread
 
 from webserver import keep_alive
@@ -14,10 +14,15 @@ application = ApplicationBuilder().token(BOT_TOKEN).build()
 
 API_BASE = "https://datis.clowd.io/api"
 
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+application = ApplicationBuilder().token(BOT_TOKEN).build()
 
 # --- ATIS Fetcher ---
 
@@ -129,6 +134,23 @@ def main():
         logger.error(f"Critical error: {e}")
         raise
 
+# --- Flask Routes ---
+@app.route("/webhook", methods=["POST"])
+async def webhook():
+    if request.method == "POST":
+        update = Update.de_json(request.get_json(force=True), application.bot)
+        await application.process_update(update)
+    return "ok"
+
+@app.route("/")
+def home():
+    return "Bot is running."
+
 if __name__ == "__main__":
-    keep_alive()
-    main()
+    import asyncio
+
+    async def set_webhook():
+        await application.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
+
+    asyncio.run(set_webhook())
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
