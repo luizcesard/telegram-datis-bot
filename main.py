@@ -30,7 +30,12 @@ async def handle_icao(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(text) == 4 and text.isalpha():
         try:
             data = await fetch_atis(text)
-            await update.message.reply_text(str(data))  # TEMPORARY: send raw response
+
+            if isinstance(data, list) and data:
+                atis = data[0].get("datis", "No ATIS text found.")
+                await update.message.reply_text(f"{text} ATIS:\n{atis}")
+            else:
+                await update.message.reply_text(f"No ATIS found for {text}.")
         except Exception as e:
             logger.error(f"Error fetching {text}: {e}")
             await update.message.reply_text(f"Error fetching ATIS for {text}.")
