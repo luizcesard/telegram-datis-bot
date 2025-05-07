@@ -19,7 +19,9 @@ async def fetch_atis(icao: str):
     res = requests.get(url)
     logger.info(f"GET {url} => {res.status_code}")
     res.raise_for_status()
-    return res.json()
+    data = res.json()
+    logger.info(f"API response: {data}")
+    return data
 
 # --- Handlers ---
 
