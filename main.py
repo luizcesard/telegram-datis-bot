@@ -27,7 +27,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+
 application = ApplicationBuilder().token(BOT_TOKEN).build()
 
 # --- ATIS Fetcher ---
