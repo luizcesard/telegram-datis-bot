@@ -136,10 +136,10 @@ def main():
 
 # --- Flask Routes ---
 @app.route('/webhook', methods=["POST", "GET"])
-def webhook():
+async def webhook():
     if request.method == "POST":
         update = Update.de_json(request.get_json(force=True), application.bot)
-        asyncio.run(application.process_update(update))  # This runs the update in an event loop
+        await application.process_update(update)  # Using await instead of asyncio.run
         return "OK", 200
     return "Webhook is running", 200
     
