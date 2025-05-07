@@ -2,7 +2,7 @@
 import logging
 import requests
 import asyncio
-from telegram import Update
+from telegram import Update, Bot
 from quart import Quart, request
 from threading import Thread
 
