@@ -40,29 +40,38 @@ async def handle_icao(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Error fetching {text}: {e}")
             await update.message.reply_text(f"Error fetching ATIS for {text}.")
 
-async def all_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        res = requests.get(f"{API_BASE}/all")
-        logger.info(f"GET /all => {res.status_code}")
+        url = f"{API_BASE}/all"
+        res = requests.get(url)
         res.raise_for_status()
-        data = res.json()
+        stations = res.json()
 
-        if not isinstance(data, list) or not data:
-            await update.message.reply_text("No data returned.")
+        messages = []
+        for station in stations:
+            icao = station.get("airport", "N/A")
+            datis = station.get("datis")
+            if datis:
+                messages.append(f"{icao}:\n{datis}\n")
+
+        if not messages:
+            await update.message.reply_text("No ATIS data found.")
             return
 
-        message = ""
-        for entry in data[:5]:  # Limit to 5 stations
-            icao = entry.get("icao", "N/A")
-            name = entry.get("name", "Unknown")
-            atis = entry.get("atis", {}).get("text", "No ATIS text.")
-            freq = entry.get("frequency", "N/A")
-            message += f"{icao} – {name}\nFreq: {freq}\n{atis}\n\n"
-        
-        await update.message.reply_text(message[:4000])  # Telegram message limit
+        # Split into chunks if too long for Telegram (max ~4096 chars)
+        chunk = ""
+        for msg in messages:
+            if len(chunk) + len(msg) > 4000:
+                await update.message.reply_text(chunk)
+                chunk = msg
+            else:
+                chunk += msg
+        if chunk:
+            await update.message.reply_text(chunk)
+
     except Exception as e:
-        logger.error(f"Error in /all: {e}")
-        await update.message.reply_text("Error fetching all ATIS data.")
+        logger.error(f"Error fetching /all: {e}")
+        await update.message.reply_text("An error occurred fetching all ATIS data.")
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
