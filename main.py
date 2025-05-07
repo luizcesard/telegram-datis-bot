@@ -88,16 +88,24 @@ async def stations_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Error fetching station list.")
 
 def main():
-    app = ApplicationBuilder().token(os.environ["BOT_TOKEN"]).build()
-    
-    # Add handlers
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CommandHandler("all", all_command))
-    app.add_handler(CommandHandler("stations", stations_command))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
-    
-    # Start bot
-    app.run_polling()
+    try:
+        app = ApplicationBuilder().token(os.environ["BOT_TOKEN"]).build()
+        
+        # Add handlers
+        app.add_handler(CommandHandler("start", start_command))
+        app.add_handler(CommandHandler("all", all_command))
+        app.add_handler(CommandHandler("stations", stations_command))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
+        
+        # Add error handler
+        app.add_error_handler(lambda update, context: logger.error(f"Error: {context.error}"))
+        
+        logger.info("Starting bot...")
+        # Start bot
+        app.run_polling(allowed_updates=Update.ALL_TYPES)
+    except Exception as e:
+        logger.error(f"Critical error: {e}")
+        raise
 
 if __name__ == "__main__":
     main()
