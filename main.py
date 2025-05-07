@@ -135,12 +135,13 @@ def main():
         raise
 
 # --- Flask Routes ---
-@app.route('/webhook', methods=['POST'])
+@app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
     if request.method == "POST":
-        update = Update.de_json(request.get_json(force=True), bot)
+        update = Update.de_json(request.get_json(force=True), application.bot)
         application.process_update(update)
-    return "OK", 200
+        return "OK", 200
+    return "Webhook is running", 200
     
 @app.route("/")
 def home():
