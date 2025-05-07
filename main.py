@@ -106,7 +106,7 @@ def main():
         
         # Add handlers
         app.add_handler(CommandHandler("start", start_command))
-        app.add_handler(CommandHandler("all", all_command))
+        app.add_handler(CommandHandler("all", handle_all))
         app.add_handler(CommandHandler("stations", stations_command))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
         
