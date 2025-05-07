@@ -3,13 +3,19 @@ import logging
 import requests
 import asyncio
 from telegram import Update
-from flask import Flask, request
+from quart import Quart, request
 from threading import Thread
 
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 import os
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+# Initialize the bot
+bot = Bot(token=BOT_TOKEN)
+
+# Create a Quart app instead of Flask
+app = Quart(__name__)
 application = ApplicationBuilder().token(BOT_TOKEN).build()
 
 API_BASE = "https://datis.clowd.io/api"
@@ -135,13 +141,15 @@ def main():
         raise
 
 # --- Flask Routes ---
-@app.route('/webhook', methods=["POST", "GET"])
+@app.route('/webhook', methods=['POST'])
 async def webhook():
-    if request.method == "POST":
-        update = Update.de_json(request.get_json(force=True), application.bot)
-        await application.process_update(update)  # Using await instead of asyncio.run
-        return "OK", 200
-    return "Webhook is running", 200
+    data = await request.get_json()
+    update = Update.de_json(data, bot)
+
+    # Process the update asynchronously
+    await application.process_update(update)  # Assuming `application` is already defined
+
+    return 'OK', 200
     
 @app.route("/")
 def home():
