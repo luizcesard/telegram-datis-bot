@@ -1,11 +1,11 @@
 
 import logging
 import requests
+import asyncio
 from telegram import Update
 from flask import Flask, request
 from threading import Thread
 
-from webserver import keep_alive
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 import os
 
