@@ -9,6 +9,9 @@ from webserver import keep_alive
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 import os
 
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+application = ApplicationBuilder().token(BOT_TOKEN).build()
+
 API_BASE = "https://datis.clowd.io/api"
 
 logging.basicConfig(
