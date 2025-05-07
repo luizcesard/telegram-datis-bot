@@ -89,6 +89,9 @@ async def stations_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     try:
+        # Clear any existing handlers
+        logging.getLogger().handlers.clear()
+        
         app = ApplicationBuilder().token(os.environ["BOT_TOKEN"]).build()
         
         # Add handlers
