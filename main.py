@@ -98,7 +98,9 @@ def main():
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
         
         # Add error handler
-        app.add_error_handler(lambda update, context: logger.error(f"Error: {context.error}"))
+        async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+            logger.error(f"Error: {context.error}")
+        app.add_error_handler(error_handler)
         
         logger.info("Starting bot...")
         # Start bot
