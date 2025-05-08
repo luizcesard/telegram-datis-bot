@@ -9,12 +9,13 @@ from threading import Thread
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 import os
 
+
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-app = Quart(__name__)
+
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_BASE = "https://datis.clowd.io/api"
@@ -23,6 +24,10 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 application = Application.builder().token(BOT_TOKEN).build()
 # bot = Bot(token=BOT_TOKEN)
 
+@app.before_serving
+async def startup():
+    await application.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
+app = Quart(__name__)
 # --- ATIS Fetcher ---
 
 async def fetch_atis(icao: str):
@@ -140,16 +145,11 @@ async def webhook():
 async def startup():
     setup_handlers()
     await application.initialize()
+    await application.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
     
 @app.route("/")
 def home():
     return "Bot is running."
 
 if __name__ == "__main__":
-    import asyncio
-
-    async def set_webhook():
-        await application.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
-
-    asyncio.run(set_webhook())
     app.run(host="0.0.0.0", port=5000)
