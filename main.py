@@ -9,7 +9,7 @@ from threading import Thread
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 import os
 
-
+bot = None
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
@@ -131,20 +131,22 @@ def setup_handlers():
         raise
 
 app = Quart(__name__)
-# --- Flask Routes ---
-@app.route('/webhook', methods=['POST'])
-async def webhook():
-    data = await request.get_json()
-    update = Update.de_json(data, bot)
-    await application.process_update(update)
-    return 'OK', 200
-
+# --- Flask Routes --
 @app.before_serving
 async def startup():
     setup_handlers()
     await application.initialize()
-    bot = application.bot
+    global bot = application.bot
     await bot.set_webhook(f"{WEBHOOK_URL}/webhook")
+    
+@app.route('/webhook', methods=['POST'])
+async def webhook():
+    if bot is None:
+        return "Not ready", 503
+    data = await request.get_json()
+    update = Update.de_json(data, bot)
+    await application.process_update(update)
+    return 'OK', 200
     
 @app.route("/")
 def home():
