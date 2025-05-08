@@ -16,7 +16,7 @@ bot = Bot(token=BOT_TOKEN)
 
 # Create a Quart app instead of Flask
 app = Quart(__name__)
-application = ApplicationBuilder().token(BOT_TOKEN).build()
+application = Application.builder().token(BOT_TOKEN).build()
 
 API_BASE = "https://datis.clowd.io/api"
 
@@ -27,8 +27,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-application = ApplicationBuilder().token(BOT_TOKEN).build()
 
 # --- ATIS Fetcher ---
 
