@@ -9,24 +9,19 @@ from threading import Thread
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 import os
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-# Initialize the bot
-bot = Bot(token=BOT_TOKEN)
-
-# Create a Quart app instead of Flask
-app = Quart(__name__)
-application = Application.builder().token(BOT_TOKEN).build()
-
-API_BASE = "https://datis.clowd.io/api"
-
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
+app = Quart(__name__)
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+API_BASE = "https://datis.clowd.io/api"
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+
+application = Application.builder().token(BOT_TOKEN).build()
+# bot = Bot(token=BOT_TOKEN)
 
 # --- ATIS Fetcher ---
 
@@ -113,12 +108,10 @@ async def stations_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error in /stations: {e}")
         await update.message.reply_text("Error fetching station list.")
 
-def main():
+def setup_handlers():
     try:
         # Clear any existing handlers
         logging.getLogger().handlers.clear()
-        
-        app = ApplicationBuilder().token(os.environ["BOT_TOKEN"]).build()
         
         # Add handlers
         app.add_handler(CommandHandler("start", start_command))
@@ -132,12 +125,9 @@ def main():
         app.add_error_handler(error_handler)
         
         logger.info("Starting bot...")
-        # Start bot
-        app.run_polling(allowed_updates=Update.ALL_TYPES)
     except Exception as e:
         logger.error(f"Critical error: {e}")
         raise
-
 # --- Flask Routes ---
 @app.route('/webhook', methods=['POST'])
 async def webhook():
@@ -145,6 +135,11 @@ async def webhook():
     update = Update.de_json(data, bot)
     await application.process_update(update)
     return 'OK', 200
+
+@app.before_serving
+async def startup():
+    setup_handlers()
+    await application.initialize()
     
 @app.route("/")
 def home():
@@ -157,9 +152,4 @@ if __name__ == "__main__":
         await application.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
 
     asyncio.run(set_webhook())
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
-
-@app.before_serving
-async def startup():
-    await application.initialize()
+    app.run(host="0.0.0.0", port=5000)
