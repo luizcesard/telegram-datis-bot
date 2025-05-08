@@ -114,15 +114,15 @@ def setup_handlers():
         logging.getLogger().handlers.clear()
         
         # Add handlers
-        app.add_handler(CommandHandler("start", start_command))
-        app.add_handler(CommandHandler("all", handle_all))
-        app.add_handler(CommandHandler("stations", stations_command))
-        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
+        application.add_handler(CommandHandler("start", start_command))
+        application.add_handler(CommandHandler("all", handle_all))
+        application.add_handler(CommandHandler("stations", stations_command))
+        applocation.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
         
         # Add error handler
         async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             logger.error(f"Error: {context.error}")
-        app.add_error_handler(error_handler)
+        application.add_error_handler(error_handler)
         
         logger.info("Starting bot...")
     except Exception as e:
