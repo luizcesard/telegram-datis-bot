@@ -144,9 +144,10 @@ async def webhook():
     data = await request.get_json()
     update = Update.de_json(data, bot)
 
-    # Process the update asynchronously
-    await application.process_update(update)  # Assuming `application` is already defined
+    if not application.ready:
+        await application.initialize()
 
+    await application.process_update(update)
     return 'OK', 200
     
 @app.route("/")
@@ -161,3 +162,8 @@ if __name__ == "__main__":
 
     asyncio.run(set_webhook())
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
+
+@app.before_serving
+async def startup():
+    await application.initialize()
