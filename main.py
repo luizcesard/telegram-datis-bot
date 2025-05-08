@@ -117,7 +117,7 @@ def setup_handlers():
         application.add_handler(CommandHandler("start", start_command))
         application.add_handler(CommandHandler("all", handle_all))
         application.add_handler(CommandHandler("stations", stations_command))
-        applocation.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
         
         # Add error handler
         async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
