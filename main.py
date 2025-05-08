@@ -6,7 +6,7 @@ from telegram import Update, Bot
 from quart import Quart, request
 from threading import Thread
 
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 import os
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
