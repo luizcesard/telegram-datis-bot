@@ -134,9 +134,10 @@ app = Quart(__name__)
 # --- Flask Routes --
 @app.before_serving
 async def startup():
+    global bot
     setup_handlers()
     await application.initialize()
-    global bot = application.bot
+    bot = application.bot
     await bot.set_webhook(f"{WEBHOOK_URL}/webhook")
     
 @app.route('/webhook', methods=['POST'])
