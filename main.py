@@ -143,10 +143,6 @@ def main():
 async def webhook():
     data = await request.get_json()
     update = Update.de_json(data, bot)
-
-    if not application.ready:
-        await application.initialize()
-
     await application.process_update(update)
     return 'OK', 200
     
