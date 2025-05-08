@@ -24,10 +24,7 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 application = Application.builder().token(BOT_TOKEN).build()
 # bot = Bot(token=BOT_TOKEN)
 
-@app.before_serving
-async def startup():
-    await application.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
-app = Quart(__name__)
+
 # --- ATIS Fetcher ---
 
 async def fetch_atis(icao: str):
@@ -133,6 +130,8 @@ def setup_handlers():
     except Exception as e:
         logger.error(f"Critical error: {e}")
         raise
+
+app = Quart(__name__)
 # --- Flask Routes ---
 @app.route('/webhook', methods=['POST'])
 async def webhook():
