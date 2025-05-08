@@ -22,7 +22,6 @@ API_BASE = "https://datis.clowd.io/api"
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 application = Application.builder().token(BOT_TOKEN).build()
-# bot = Bot(token=BOT_TOKEN)
 
 
 # --- ATIS Fetcher ---
@@ -144,7 +143,8 @@ async def webhook():
 async def startup():
     setup_handlers()
     await application.initialize()
-    await application.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
+    bot = application.bot
+    await bot.set_webhook(f"{WEBHOOK_URL}/webhook")
     
 @app.route("/")
 def home():
