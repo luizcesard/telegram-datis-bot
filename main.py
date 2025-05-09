@@ -2,11 +2,11 @@
 import logging
 import requests
 import asyncio
-from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultArticle, InputTextMessageContent
 from quart import Quart, request
 from threading import Thread
 
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler, InlineQueryHandler, CallbackContext
 import os
 
 bot = None
@@ -150,6 +150,36 @@ async def station_callback_handler(update: Update, context: ContextTypes.DEFAULT
     fake_update = Update(update.update_id, message=fake_message)
 
     await handle_icao(fake_update, context)
+
+# --- Inline query handler ---
+async def inline_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        # Get the list of stations from your API
+        res = requests.get(f"{API_BASE}/stations")
+        logger.info(f"GET /stations => {res.status_code}")
+        res.raise_for_status()
+        stations = res.json()
+
+        if stations:
+            # Prepare the list of results (station buttons)
+            results = []
+            for station in stations:
+                # Creating an inline button with ICAO code
+                results.append(
+                    InlineQueryResultArticle(
+                        id=station,  # ID should be unique for each result
+                        title=station,  # The title shown in the suggestion
+                        input_message_content=InputTextMessageContent(f"@d_atis_bot {station}")
+                    )
+                )
+
+            # Respond with the list of stations
+            await update.inline_query.answer(results)
+        else:
+            await update.inline_query.answer([], switch_pm_text="No stations available", switch_pm_parameter="no_stations")
+    except Exception as e:
+        logger.error(f"Error in inline_query_handler: {e}")
+        await update.inline_query.answer([], switch_pm_text="Error fetching station list", switch_pm_parameter="error")
     
 def setup_handlers():
     try:
@@ -162,6 +192,7 @@ def setup_handlers():
         application.add_handler(CommandHandler("stations", stations_command))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
         application.add_handler(CallbackQueryHandler(station_callback_handler, pattern="^STATION_"))
+        application.add_handler(InlineQueryHandler(inline_query_handler))
         
         # Add error handler
         async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
