@@ -5,8 +5,9 @@ import asyncio
 from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultArticle, InputTextMessageContent
 from quart import Quart, request
 from threading import Thread
+from uuid import uuid4
 
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler, CallbackContext
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler, InlineQueryHandler, CallbackContext
 import os
 
 bot = None
@@ -151,6 +152,23 @@ async def station_callback_handler(update: Update, context: ContextTypes.DEFAULT
 
     await handle_icao(fake_update, context)
 
+# --- Inline Query Handler ---
+
+async def inline_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.inline_query.query.upper().strip()
+
+    if not query:
+        # Don't show anything for empty queries, but still allow typing
+        return
+
+    result = InlineQueryResultArticle(
+        id=str(uuid4()),
+        title=f"Send ICAO code: {query}",
+        input_message_content=InputTextMessageContent(query),
+        description=f"Request ATIS for {query}",
+    )
+
+    await update.inline_query.answer([result], cache_time=0)
     
 def setup_handlers():
     try:
@@ -163,7 +181,8 @@ def setup_handlers():
         application.add_handler(CommandHandler("stations", stations_command))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
         application.add_handler(CallbackQueryHandler(station_callback_handler, pattern="^STATION_"))
-        
+        application.add_handler(InlineQueryHandler(inline_query_handler))
+
         # Add error handler
         async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             logger.error(f"Error: {context.error}")
