@@ -155,20 +155,18 @@ async def station_callback_handler(update: Update, context: ContextTypes.DEFAULT
 # --- Inline Query Handler ---
 
 async def inline_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.inline_query.query.upper().strip()
+    query = update.inline_query.query.strip().upper()
 
-    if not query:
-        # Don't show anything for empty queries, but still allow typing
-        return
-
-    result = InlineQueryResultArticle(
-        id=str(uuid4()),
-        title=f"Send ICAO code: {query}",
-        input_message_content=InputTextMessageContent(query),
-        description=f"Request ATIS for {query}",
-    )
-
-    await update.inline_query.answer([result], cache_time=0)
+    # Only react to valid ICAO codes (4 letters)
+    if len(query) == 4 and query.isalpha():
+        result = InlineQueryResultArticle(
+            id=str(uuid4()),
+            title=query,  # Just show the ICAO code
+            input_message_content=InputTextMessageContent(query)
+        )
+        await update.inline_query.answer([result], cache_time=0)
+    else:
+        await update.inline_query.answer([], cache_time=0)
     
 def setup_handlers():
     try:
