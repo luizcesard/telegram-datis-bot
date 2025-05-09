@@ -157,15 +157,34 @@ async def station_callback_handler(update: Update, context: ContextTypes.DEFAULT
 async def inline_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.inline_query.query.strip().upper()
 
-    # Only react to valid ICAO codes (4 letters)
+    # Only proceed if query looks like a valid ICAO code
     if len(query) == 4 and query.isalpha():
-        result = InlineQueryResultArticle(
-            id=str(uuid4()),
-            title=query,  # Just show the ICAO code
-            input_message_content=InputTextMessageContent(query)
+        fake_message = Message(
+            message_id=0,
+            date=datetime.now(),
+            chat=update.inline_query.from_user,
+            text=query,
+            from_user=update.inline_query.from_user,
+            bot=context.bot,
         )
-        await update.inline_query.answer([result], cache_time=0)
+
+        fake_update = Update(update_id=update.update_id, message=fake_message)
+
+        # Run your existing ICAO handler and capture the response
+        await handle_icao(fake_update, context)
+
+        # Create inline result that inserts the ICAO code in chat (not the reply)
+        results = [
+            InlineQueryResultArticle(
+                id=str(uuid4()),
+                title=query,
+                input_message_content=InputTextMessageContent(query)
+            )
+        ]
+
+        await update.inline_query.answer(results, cache_time=0)
     else:
+        # Ignore or return empty if not valid ICAO
         await update.inline_query.answer([], cache_time=0)
     
 def setup_handlers():
