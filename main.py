@@ -65,7 +65,7 @@ async def get_atis_text(icao_code: str):
 # --- Handlers ---
 
 async def handle_icao(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip().upper()
+    icao_code = update.message.text.strip().upper()
     if len(icao_code) == 4 and icao_code.isalpha():
         atis_text = await get_atis_text(icao_code)
         await update.message.reply_text(atis_text, parse_mode="Markdown")
