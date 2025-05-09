@@ -45,7 +45,7 @@ async def handle_icao(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             if isinstance(data, list) and data:
                 atis = data[0].get("datis", "No ATIS text found.")
-                await update.message.reply_text(f"{text} ATIS:\n\n<code>{atis}</code>")
+                await update.message.reply_text(f"{text} ATIS:\n\n`{atis}`", parse_mode="Markdown")
             else:
                 await update.message.reply_text(f"No ATIS found for {text}.")
         except Exception as e:
