@@ -2,7 +2,7 @@
 import logging
 import requests
 import asyncio
-from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultArticle, InputTextMessageContent
+from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultArticle, InputTextMessageContent, Message
 from quart import Quart, request
 from threading import Thread
 from uuid import uuid4
