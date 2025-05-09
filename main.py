@@ -149,7 +149,7 @@ async def station_callback_handler(update: Update, context: ContextTypes.DEFAULT
 
     fake_update = Update(update.update_id, message=fake_message)
 
-    await icao(fake_update, context)
+    await handle_icao(fake_update, context)
     
 def setup_handlers():
     try:
