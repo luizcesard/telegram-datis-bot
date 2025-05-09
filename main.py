@@ -45,7 +45,7 @@ async def handle_icao(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             if isinstance(data, list) and data:
                 atis = data[0].get("datis", "No ATIS text found.")
-                await update.message.reply_text(f"{text} ATIS:\n\n`{atis}`")
+                await update.message.reply_text(f"{text} ATIS:\n\n<code>{atis}</code>")
             else:
                 await update.message.reply_text(f"No ATIS found for {text}.")
         except Exception as e:
@@ -152,35 +152,30 @@ async def station_callback_handler(update: Update, context: ContextTypes.DEFAULT
     await handle_icao(fake_update, context)
 
 # --- Inline query handler ---
+
 async def inline_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        # Get the list of stations from your API
         res = requests.get(f"{API_BASE}/stations")
         logger.info(f"GET /stations => {res.status_code}")
         res.raise_for_status()
         stations = res.json()
 
         if stations:
-            # Prepare the list of results (station buttons)
             results = []
-            for station in stations:
-                # Creating an inline button with ICAO code
+            for station in sorted(stations)[:50]:  # Limit to 50
                 results.append(
                     InlineQueryResultArticle(
-                        id=station,  # ID should be unique for each result
-                        title=station,  # The title shown in the suggestion
-                        input_message_content=InputTextMessageContent(f"@d_atis_bot {station}")
+                        id=station,
+                        title=station,
+                        input_message_content=InputTextMessageContent(station)
                     )
                 )
-
-            # Respond with the list of stations
             await update.inline_query.answer(results)
         else:
-            await update.inline_query.answer([], switch_pm_text="No stations available", switch_pm_parameter="no_stations")
+            await update.inline_query.answer([])
     except Exception as e:
         logger.error(f"Error in inline_query_handler: {e}")
-        await update.inline_query.answer([], switch_pm_text="Error fetching station list", switch_pm_parameter="error")
-    
+        await update.inline_query.answer([])    
 def setup_handlers():
     try:
         # Clear any existing handlers
