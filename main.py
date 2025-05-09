@@ -2,7 +2,7 @@
 import logging
 import requests
 import asyncio
-from telegram import Update, Bot
+from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from quart import Quart, request
 from threading import Thread
 
@@ -99,15 +99,34 @@ async def stations_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"GET /stations => {res.status_code}")
         res.raise_for_status()
         stations = res.json()
-        
-        if stations:
-            station_list = ", ".join(sorted(stations))
-            await update.message.reply_text(f"Supported stations:\n{station_list}")
-        else:
+
+        if not stations:
             await update.message.reply_text("No stations available.")
+            return
+
+        # Build 2-column buttons with ICAO codes as callback_data
+        buttons = []
+        for i in range(0, len(stations), 2):
+            row = []
+            row.append(InlineKeyboardButton(stations[i], callback_data=stations[i]))
+            if i + 1 < len(stations):
+                row.append(InlineKeyboardButton(stations[i + 1], callback_data=stations[i + 1]))
+            buttons.append(row)
+
+        keyboard = InlineKeyboardMarkup(buttons)
+        await update.message.reply_text("Select a station:", reply_markup=keyboard)
+
     except Exception as e:
         logger.error(f"Error in /stations: {e}")
         await update.message.reply_text("Error fetching station list.")
+
+async def callback_query_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.callback_query:
+        await update.callback_query.answer()
+        # Simulate a user text message so existing handler works unchanged
+        update.message = update.callback_query.message
+        update.message.text = update.callback_query.data
+        await icao_command(update, context)
 
 def setup_handlers():
     try:
@@ -119,6 +138,7 @@ def setup_handlers():
         application.add_handler(CommandHandler("all", handle_all))
         application.add_handler(CommandHandler("stations", stations_command))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
+        application.add_handler(CallbackQueryHandler(callback_query_router))
         
         # Add error handler
         async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
