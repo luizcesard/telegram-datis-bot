@@ -6,7 +6,7 @@ from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from quart import Quart, request
 from threading import Thread
 
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler
 import os
 
 bot = None
@@ -100,25 +100,57 @@ async def stations_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         res.raise_for_status()
         stations = sorted(res.json())
 
-        # Generate buttons in 2 columns
-        buttons = [
+        # Build 2-column keyboard
+        keyboard = [
             [
-                InlineKeyboardButton(
-                    text=station,
-                    switch_inline_query_current_chat=station
-                )
-                for station in stations[i:i+2]
+                InlineKeyboardButton(text=code, callback_data=f"STATION_{code}")
+                for code in stations[i:i+2]
             ]
             for i in range(0, len(stations), 2)
         ]
-
-        reply_markup = InlineKeyboardMarkup(buttons)
+        reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text("Select a station:", reply_markup=reply_markup)
 
     except Exception as e:
         logger.error(f"Error in /stations: {e}")
         await update.message.reply_text("Error fetching station list.")
 
+# --- Callback Handlers ---
+
+async def station_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if not query.data.startswith("STATION_"):
+        return
+
+    icao_code = query.data.replace("STATION_", "")
+    
+    # Delete the inline keyboard (optional)
+    #await query.edit_message_reply_markup(reply_markup=None)
+
+    # Create a fake message object with the ICAO code and call your icao function
+    class FakeMessage:
+        def __init__(self, text, user, chat, bot):
+            self.text = text
+            self.from_user = user
+            self.chat = chat
+            self.bot = bot
+
+        async def reply_text(self, text, **kwargs):
+            await context.bot.send_message(chat_id=self.chat.id, text=text, **kwargs)
+
+    fake_message = FakeMessage(
+        text=icao_code,
+        user=query.from_user,
+        chat=query.message.chat,
+        bot=context.bot
+    )
+
+    fake_update = Update(update.update_id, message=fake_message)
+
+    await icao(fake_update, context)
+    
 def setup_handlers():
     try:
         # Clear any existing handlers
@@ -129,6 +161,7 @@ def setup_handlers():
         application.add_handler(CommandHandler("all", handle_all))
         application.add_handler(CommandHandler("stations", stations_command))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
+        application.add_handler(CallbackQueryHandler(station_callback_handler, pattern="^STATION_"))
         
         # Add error handler
         async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
