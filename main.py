@@ -11,6 +11,16 @@ from datetime import datetime
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler, InlineQueryHandler, CallbackContext
 import os
 
+#class FakeMessage:
+#    def __init__(self, text, user, chat, bot):
+#        self.text = text
+#        self.from_user = user
+#        self.chat = chat
+#        self.bot = bot
+#
+#    async def reply_text(self, text, **kwargs):
+#        await context.bot.send_message(chat_id=self.chat.id, text=text, **kwargs)
+
 bot = None
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -36,23 +46,29 @@ async def fetch_atis(icao: str):
     data = res.json()
     logger.info(f"API response: {data}")
     return data
+    
+# -- Helper ---
+async def get_atis_text(icao_code: str):
+    try:
+        # Fetch the ATIS data from the API
+        data = await fetch_atis(icao_code)
 
+        if isinstance(data, list) and data:
+            atis = data[0].get("datis", "No ATIS text found.")
+            return f"{icao_code} ATIS:\n\n`{atis}`"  # Return the formatted ATIS message
+        else:
+            return f"No ATIS found for {icao_code}."  # No data found
+
+    except Exception as e:
+        logger.error(f"Error fetching ATIS for {icao_code}: {e}")
+        return f"Error fetching ATIS for {icao_code}."  # Return an error message if something goes wrong
 # --- Handlers ---
 
 async def handle_icao(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().upper()
-    if len(text) == 4 and text.isalpha():
-        try:
-            data = await fetch_atis(text)
-
-            if isinstance(data, list) and data:
-                atis = data[0].get("datis", "No ATIS text found.")
-                await update.message.reply_text(f"{text} ATIS:\n\n`{atis}`", parse_mode="Markdown")
-            else:
-                await update.message.reply_text(f"No ATIS found for {text}.")
-        except Exception as e:
-            logger.error(f"Error fetching {text}: {e}")
-            await update.message.reply_text(f"Error fetching ATIS for {text}.")
+    if len(icao_code) == 4 and icao_code.isalpha():
+        atis_text = await get_atis_text(icao_code)
+        await update.message.reply_text(atis_text, parse_mode="Markdown")
 
 async def handle_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -127,66 +143,35 @@ async def station_callback_handler(update: Update, context: ContextTypes.DEFAULT
         return
 
     icao_code = query.data.replace("STATION_", "")
-    
-    # Delete the inline keyboard (optional)
-    #await query.edit_message_reply_markup(reply_markup=None)
 
-    # Create a fake message object with the ICAO code and call your icao function
-    class FakeMessage:
-        def __init__(self, text, user, chat, bot):
-            self.text = text
-            self.from_user = user
-            self.chat = chat
-            self.bot = bot
+    atis_text = await get_atis_text(icao_code)
 
-        async def reply_text(self, text, **kwargs):
-            await context.bot.send_message(chat_id=self.chat.id, text=text, **kwargs)
-
-    fake_message = FakeMessage(
-        text=icao_code,
-        user=query.from_user,
-        chat=query.message.chat,
-        bot=context.bot
-    )
-
-    fake_update = Update(update.update_id, message=fake_message)
-
-    await handle_icao(fake_update, context)
+    # Send the ATIS information to the user when they click the inline button
+    await query.message.reply_text(atis_text, parse_mode="Markdown")
 
 # --- Inline Query Handler ---
 
 async def inline_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.inline_query.query.strip().upper()
+    results = []
 
-    # Only proceed if query looks like a valid ICAO code
     if len(query) == 4 and query.isalpha():
-        fake_message = Message(
-            message_id=0,
-            date=datetime.now(),
-            chat=update.inline_query.from_user,
-            text=query,
-            from_user=update.inline_query.from_user,
-            bot=context.bot,
-        )
+        atis_text = await get_atis_text(query)
 
-        fake_update = Update(update_id=update.update_id, message=fake_message)
-
-        # Run your existing ICAO handler and capture the response
-        await handle_icao(fake_update, context)
-
-        # Create inline result that inserts the ICAO code in chat (not the reply)
-        results = [
+        results.append(
             InlineQueryResultArticle(
                 id=str(uuid4()),
-                title=query,
-                input_message_content=InputTextMessageContent(query)
+                title=f"ATIS for {query}",
+                description=f"Tap to get ATIS for {query}",
+                input_message_content=InputTextMessageContent(
+                    message_text=atis_text,
+                    parse_mode="Markdown"
+                )
             )
-        ]
+        )
 
-        await update.inline_query.answer(results, cache_time=0)
-    else:
-        # Ignore or return empty if not valid ICAO
-        await update.inline_query.answer([], cache_time=0)
+    await update.inline_query.answer(results, cache_time=1)
+
     
 def setup_handlers():
     try:
