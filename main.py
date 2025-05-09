@@ -6,7 +6,7 @@ from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup, In
 from quart import Quart, request
 from threading import Thread
 
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler, InlineQueryHandler, CallbackContext
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler, CallbackContext
 import os
 
 bot = None
@@ -151,31 +151,7 @@ async def station_callback_handler(update: Update, context: ContextTypes.DEFAULT
 
     await handle_icao(fake_update, context)
 
-# --- Inline query handler ---
-
-async def inline_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        res = requests.get(f"{API_BASE}/stations")
-        logger.info(f"GET /stations => {res.status_code}")
-        res.raise_for_status()
-        stations = res.json()
-
-        if stations:
-            results = []
-            for station in sorted(stations)[:50]:  # Limit to 50
-                results.append(
-                    InlineQueryResultArticle(
-                        id=station,
-                        title=station,
-                        input_message_content=InputTextMessageContent(station)
-                    )
-                )
-            await update.inline_query.answer(results)
-        else:
-            await update.inline_query.answer([])
-    except Exception as e:
-        logger.error(f"Error in inline_query_handler: {e}")
-        await update.inline_query.answer([])    
+    
 def setup_handlers():
     try:
         # Clear any existing handlers
@@ -187,7 +163,6 @@ def setup_handlers():
         application.add_handler(CommandHandler("stations", stations_command))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
         application.add_handler(CallbackQueryHandler(station_callback_handler, pattern="^STATION_"))
-        application.add_handler(InlineQueryHandler(inline_query_handler))
         
         # Add error handler
         async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
