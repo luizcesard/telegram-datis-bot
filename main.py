@@ -6,7 +6,7 @@ from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from quart import Quart, request
 from threading import Thread
 
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler
 import os
 
 bot = None
