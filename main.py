@@ -121,12 +121,37 @@ async def get_atis_text(icao_code: str, atis_type: str = None):
         return f"Error fetching ATIS for {icao_code}."
 
 # --- Handlers ---
-
+"""
 async def handle_icao(update: Update, context: ContextTypes.DEFAULT_TYPE):
     icao_code = update.message.text.strip().upper()
     if len(icao_code) == 4 and icao_code.isalpha():
         atis_text = await get_atis_text(icao_code)
         await update.message.reply_text(atis_text, parse_mode="Markdown")
+"""
+
+async def handle_icao(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip().upper()
+    
+    # Accept input like "KDFW", "KDFW ARR", "KDFW DEP"
+    parts = text.split()
+    
+    if len(parts) == 1 and len(parts[0]) == 4 and parts[0].isalpha():
+        icao = parts[0]
+        result = await get_atis_text(icao, atis_type=None)   # return ALL
+        return await update.message.reply_text(result, parse_mode="Markdown")
+
+    if len(parts) == 2 and len(parts[0]) == 4:
+        icao = parts[0]
+        t = parts[1].lower()
+        if t in ["arr", "arrival"]:
+            result = await get_atis_text(icao, "arr")
+            return await update.message.reply_text(result, parse_mode="Markdown")
+        if t in ["dep", "departure"]:
+            result = await get_atis_text(icao, "dep")
+            return await update.message.reply_text(result, parse_mode="Markdown")
+
+    await update.message.reply_text("Send an ICAO code like 'KDFW' or 'KDFW ARR'.")
+
 
 async def handle_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
