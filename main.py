@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-API_BASE = "https://datis.clowd.io/api"
+API_BASE = "https://atis.info/api"
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 application = Application.builder().token(BOT_TOKEN).build()
@@ -48,20 +48,78 @@ async def fetch_atis(icao: str):
     return data
     
 # -- Helper ---
-async def get_atis_text(icao_code: str):
+
+# async def get_atis_text(icao_code: str):
+#    try:
+#        # Fetch the ATIS data from the API
+#        data = await fetch_atis(icao_code)
+#
+#        if isinstance(data, list) and data:
+#            atis = data[0].get("datis", "No ATIS text found.")
+#            return f"{icao_code} ATIS:\n\n`{atis}`"  # Return the formatted ATIS message
+#        else:
+#            return f"No ATIS found for {icao_code}."  # No data found
+#
+#    except Exception as e:
+#        logger.error(f"Error fetching ATIS for {icao_code}: {e}")
+#        return f"Error fetching ATIS for {icao_code}."  # Return an error message if something goes wrong
+
+async def get_atis_text(icao_code: str, atis_type: str = None):
+    """
+    atis_type can be: None, 'arr', 'dep'
+    If None → return all
+    If type requested but unavailable → fallback to combined
+    """
+
     try:
-        # Fetch the ATIS data from the API
         data = await fetch_atis(icao_code)
 
-        if isinstance(data, list) and data:
-            atis = data[0].get("datis", "No ATIS text found.")
-            return f"{icao_code} ATIS:\n\n`{atis}`"  # Return the formatted ATIS message
-        else:
-            return f"No ATIS found for {icao_code}."  # No data found
+        # Ensure list format
+        if isinstance(data, dict):
+            data = [data]
+
+        # Group reports by type
+        atis_by_type = {"arr": [], "dep": [], "combined": []}
+
+        for entry in data:
+            t = entry.get("type", "combined").lower()
+            text = entry.get("datis", "")
+            atis_by_type.setdefault(t, []).append(text)
+
+        # --- If user requested specific type ---
+        if atis_type:
+            atis_lower = atis_type.lower()
+
+            # Try exact match first
+            if atis_by_type.get(atis_lower):
+                atis = "\n\n".join(atis_by_type[atis_lower])
+                return f"{icao_code} {atis_type.upper()} ATIS:\n\n`{atis}`"
+
+            # fallback to combined if only one exists
+            combined = atis_by_type.get("combined")
+            if combined:
+                return f"{icao_code} ATIS (combined):\n\n`{combined[0]}`"
+
+            return f"No {atis_type.upper()} ATIS available for {icao_code}."
+
+        # --- Return ALL ATIS in a formatted message ---
+        output = [f"{icao_code} ATIS:\n"]
+
+        if atis_by_type["combined"]:
+            output.append("[COMBINED]\n" + "\n\n".join(atis_by_type["combined"]) + "\n")
+
+        if atis_by_type["dep"]:
+            output.append("[DEPARTURE]\n" + "\n\n".join(atis_by_type["dep"]) + "\n")
+
+        if atis_by_type["arr"]:
+            output.append("[ARRIVAL]\n" + "\n\n".join(atis_by_type["arr"]) + "\n")
+
+        return "\n".join(output)
 
     except Exception as e:
         logger.error(f"Error fetching ATIS for {icao_code}: {e}")
-        return f"Error fetching ATIS for {icao_code}."  # Return an error message if something goes wrong
+        return f"Error fetching ATIS for {icao_code}."
+
 # --- Handlers ---
 
 async def handle_icao(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -133,6 +191,30 @@ async def stations_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error in /stations: {e}")
         await update.message.reply_text("Error fetching station list.")
 
+async def atis_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        return await update.message.reply_text("Usage: /atis ICAO")
+    
+    icao = context.args[0].upper()
+    text = await get_atis_text(icao)
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+async def arr_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        return await update.message.reply_text("Usage: /arr ICAO")
+    
+    icao = context.args[0].upper()
+    text = await get_atis_text(icao, atis_type="arr")
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+async def dep_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        return await update.message.reply_text("Usage: /dep ICAO")
+    
+    icao = context.args[0].upper()
+    text = await get_atis_text(icao, atis_type="dep")
+    await update.message.reply_text(text, parse_mode="Markdown")
+
 # --- Callback Handlers ---
 
 async def station_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -185,6 +267,9 @@ def setup_handlers():
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
         application.add_handler(CallbackQueryHandler(station_callback_handler, pattern="^STATION_"))
         application.add_handler(InlineQueryHandler(inline_query_handler))
+        application.add_handler(CommandHandler("atis", atis_command))
+        application.add_handler(CommandHandler("arr", arr_command))
+        application.add_handler(CommandHandler("dep", dep_command))
 
         # Add error handler
         async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
