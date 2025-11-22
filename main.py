@@ -267,7 +267,7 @@ def setup_handlers():
         application.add_handler(CommandHandler("stations", stations_command))
         
         # New handler for ICAO code only (KDFW/KSLC behavior)
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(r'^[A-Z]{4}$'), handle_icao_only))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(r'^[A-Za-z]{4}$'), handle_icao_only))
         
         # Remove the previous general handle_icao, and its complexity
         
