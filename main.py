@@ -1,4 +1,3 @@
-
 import logging
 import requests
 import asyncio
@@ -11,22 +10,11 @@ from datetime import datetime
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler, InlineQueryHandler, CallbackContext
 import os
 
-#class FakeMessage:
-#    def __init__(self, text, user, chat, bot):
-#        self.text = text
-#        self.from_user = user
-#        self.chat = chat
-#        self.bot = bot
-#
-#    async def reply_text(self, text, **kwargs):
-#        await context.bot.send_message(chat_id=self.chat.id, text=text, **kwargs)
-
 bot = None
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
 
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -47,34 +35,20 @@ async def fetch_atis(icao: str):
     logger.info(f"API response: {data}")
     return data
     
-# -- Helper ---
-
-# async def get_atis_text(icao_code: str):
-#    try:
-#        # Fetch the ATIS data from the API
-#        data = await fetch_atis(icao_code)
-#
-#        if isinstance(data, list) and data:
-#            atis = data[0].get("datis", "No ATIS text found.")
-#            return f"{icao_code} ATIS:\n\n`{atis}`"  # Return the formatted ATIS message
-#        else:
-#            return f"No ATIS found for {icao_code}."  # No data found
-#
-#    except Exception as e:
-#        logger.error(f"Error fetching ATIS for {icao_code}: {e}")
-#        return f"Error fetching ATIS for {icao_code}."  # Return an error message if something goes wrong
+# -- Helper (MODIFIED) ---
 
 async def get_atis_text(icao_code: str, atis_type: str = None):
     """
     atis_type can be: None, 'arr', 'dep'
-    If None → return all
-    If type requested but unavailable → fallback to combined
+    If None → return all available reports (arr, dep, and combined).
+    If type requested but unavailable → fallback to combined.
     """
 
     try:
         data = await fetch_atis(icao_code)
 
-        # Ensure list format
+        # Ensure list format (handling the "matrix of matrix" description)
+        # The API seems to return a list of reports or a single report (dict).
         if isinstance(data, dict):
             data = [data]
 
@@ -82,37 +56,56 @@ async def get_atis_text(icao_code: str, atis_type: str = None):
         atis_by_type = {"arr": [], "dep": [], "combined": []}
 
         for entry in data:
-            t = entry.get("type", "combined").lower()
-            text = entry.get("datis", "")
-            atis_by_type.setdefault(t, []).append(text)
+            # Handle possible nested lists or just ensure we're looking at a dict
+            if isinstance(entry, dict):
+                t = entry.get("type", "combined").lower()
+                text = entry.get("datis", "")
+                atis_by_type.setdefault(t, []).append(text)
 
-        # --- If user requested specific type ---
-        if atis_type:
+        # --- If user requested specific type ('arr' or 'dep') (MODIFIED LOGIC) ---
+        if atis_type and atis_type.lower() in ['arr', 'dep']:
             atis_lower = atis_type.lower()
+            atis_upper = atis_type.upper()
 
-            # Try exact match first
+            # 1. Try exact match first (arr or dep)
             if atis_by_type.get(atis_lower):
                 atis = "\n\n".join(atis_by_type[atis_lower])
-                return f"{icao_code} {atis_type.upper()} ATIS:\n\n`{atis}`"
+                return f"{icao_code} {atis_upper} ATIS:\n\n`{atis}`"
 
-            # fallback to combined if only one exists
+            # 2. Fallback to combined if only one exists and requested type is not found
             combined = atis_by_type.get("combined")
             if combined:
-                return f"{icao_code} ATIS (combined):\n\n`{combined[0]}`"
+                # Fallback to combined, but inform the user it's combined
+                return f"{icao_code} ATIS (Fallback to COMBINED):\n\n`{combined[0]}`"
 
-            return f"No {atis_type.upper()} ATIS available for {icao_code}."
+            # 3. No requested type and no combined
+            return f"No {atis_upper} ATIS available for {icao_code}. (No combined available for fallback)"
 
-        # --- Return ALL ATIS in a formatted message ---
-        output = [f"{icao_code} ATIS:\n"]
+        # --- Return ALL ATIS (for KDFW and KSLC-like requests) ---
+        output = []
+        
+        # Priority for the single combined report (KSLC-like)
+        if len(data) == 1 and atis_by_type["combined"]:
+             # This is the KSLC case: one report, treated as combined.
+             output.append(f"{icao_code} ATIS (COMBINED):\n\n`{atis_by_type['combined'][0]}`")
+             return "\n".join(output)
 
-        if atis_by_type["combined"]:
-            output.append("[COMBINED]\n" + "\n\n".join(atis_by_type["combined"]) + "\n")
+        # For KDFW-like case (multiple reports)
+        output.append(f"{icao_code} ATIS:")
 
         if atis_by_type["dep"]:
-            output.append("[DEPARTURE]\n" + "\n\n".join(atis_by_type["dep"]) + "\n")
+            output.append("\n[DEPARTURE]\n\n" + "\n\n".join(atis_by_type["dep"]))
 
         if atis_by_type["arr"]:
-            output.append("[ARRIVAL]\n" + "\n\n".join(atis_by_type["arr"]) + "\n")
+            output.append("\n[ARRIVAL]\n\n" + "\n\n".join(atis_by_type["arr"]))
+            
+        # Include combined reports if they exist alongside arr/dep
+        if len(atis_by_type["combined"]) > 1 or (len(atis_by_type["combined"]) == 1 and (atis_by_type["arr"] or atis_by_type["dep"])):
+            output.append("\n[OTHER COMBINED REPORTS]\n\n" + "\n\n".join(atis_by_type["combined"]))
+
+
+        if len(output) <= 1: # Only the header was appended
+            return f"No ATIS found for {icao_code}."
 
         return "\n".join(output)
 
@@ -120,37 +113,22 @@ async def get_atis_text(icao_code: str, atis_type: str = None):
         logger.error(f"Error fetching ATIS for {icao_code}: {e}")
         return f"Error fetching ATIS for {icao_code}."
 
-# --- Handlers ---
-"""
-async def handle_icao(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    icao_code = update.message.text.strip().upper()
-    if len(icao_code) == 4 and icao_code.isalpha():
-        atis_text = await get_atis_text(icao_code)
-        await update.message.reply_text(atis_text, parse_mode="Markdown")
-"""
+# --- Handlers (MODIFIED) ---
 
-async def handle_icao(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Remove: handle_icao (will be replaced with a simplified version or filtered)
+# We will use MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao_only)
+async def handle_icao_only(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().upper()
     
-    # Accept input like "KDFW", "KDFW ARR", "KDFW DEP"
-    parts = text.split()
-    
-    if len(parts) == 1 and len(parts[0]) == 4 and parts[0].isalpha():
-        icao = parts[0]
-        result = await get_atis_text(icao, atis_type=None)   # return ALL
+    # Check if the input is a 4-letter ICAO code only
+    if len(text) == 4 and text.isalpha():
+        icao = text
+        # Calling with atis_type=None triggers the logic for KDFW/KSLC requirement
+        result = await get_atis_text(icao, atis_type=None)
         return await update.message.reply_text(result, parse_mode="Markdown")
 
-    if len(parts) == 2 and len(parts[0]) == 4:
-        icao = parts[0]
-        t = parts[1].lower()
-        if t in ["arr", "arrival"]:
-            result = await get_atis_text(icao, "arr")
-            return await update.message.reply_text(result, parse_mode="Markdown")
-        if t in ["dep", "departure"]:
-            result = await get_atis_text(icao, "dep")
-            return await update.message.reply_text(result, parse_mode="Markdown")
-
-    await update.message.reply_text("Send an ICAO code like 'KDFW' or 'KDFW ARR'.")
+    # If it's not a 4-letter ICAO code, it's not handled by this, or inform the user
+    await update.message.reply_text("Send a 4-letter ICAO code (e.g., 'KDFW') or use a command like /arr KDFW.")
 
 
 async def handle_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -190,6 +168,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Welcome to DATIS Bot!\n\n"
         "• Send any 4-letter ICAO code (e.g. KLAX)\n"
+        "• Use /arr or /dep followed by ICAO (e.g., /arr KLAX)\n"
         "• Use /all to see active ATIS reports\n"
         "• Use /stations to see supported airports"
     )
@@ -216,20 +195,15 @@ async def stations_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error in /stations: {e}")
         await update.message.reply_text("Error fetching station list.")
 
-async def atis_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        return await update.message.reply_text("Usage: /atis ICAO")
-    
-    icao = context.args[0].upper()
-    text = await get_atis_text(icao)
-    await update.message.reply_text(text, parse_mode="Markdown")
+# Remove: atis_command (per request)
+# async def atis_command(update: Update, context: ContextTypes.DEFAULT_TYPE): ...
 
 async def arr_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         return await update.message.reply_text("Usage: /arr ICAO")
     
     icao = context.args[0].upper()
-    text = await get_atis_text(icao, atis_type="arr")
+    text = await get_atis_text(icao, atis_type="arr") # Explicitly request 'arr'
     await update.message.reply_text(text, parse_mode="Markdown")
 
 async def dep_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -237,7 +211,7 @@ async def dep_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text("Usage: /dep ICAO")
     
     icao = context.args[0].upper()
-    text = await get_atis_text(icao, atis_type="dep")
+    text = await get_atis_text(icao, atis_type="dep") # Explicitly request 'dep'
     await update.message.reply_text(text, parse_mode="Markdown")
 
 # --- Callback Handlers ---
@@ -251,6 +225,7 @@ async def station_callback_handler(update: Update, context: ContextTypes.DEFAULT
 
     icao_code = query.data.replace("STATION_", "")
 
+    # Calls the logic for KDFW/KSLC requirement
     atis_text = await get_atis_text(icao_code)
 
     # Send the ATIS information to the user when they click the inline button
@@ -263,6 +238,7 @@ async def inline_query_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     results = []
 
     if len(query) == 4 and query.isalpha():
+        # Calls the logic for KDFW/KSLC requirement
         atis_text = await get_atis_text(query)
 
         results.append(
@@ -289,10 +265,17 @@ def setup_handlers():
         application.add_handler(CommandHandler("start", start_command))
         application.add_handler(CommandHandler("all", handle_all))
         application.add_handler(CommandHandler("stations", stations_command))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_icao))
+        
+        # New handler for ICAO code only (KDFW/KSLC behavior)
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(r'^[A-Z]{4}$'), handle_icao_only))
+        
+        # Remove the previous general handle_icao, and its complexity
+        
         application.add_handler(CallbackQueryHandler(station_callback_handler, pattern="^STATION_"))
         application.add_handler(InlineQueryHandler(inline_query_handler))
-        application.add_handler(CommandHandler("atis", atis_command))
+        
+        # Keep /arr and /dep
+        # application.add_handler(CommandHandler("atis", atis_command)) # REMOVED
         application.add_handler(CommandHandler("arr", arr_command))
         application.add_handler(CommandHandler("dep", dep_command))
 
@@ -331,3 +314,4 @@ def home():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+    
